@@ -214,9 +214,10 @@ def main(args):
                 grid_zi[mindex] = np.nan
                 logger.info('Finish regid of timestep')
 
-            logger.info('Write regridded data to tiff file: '+outputDir+outputFile)
+            logger.info('Start writing regridded data to tiff file: '+outputDir+outputFile)
             write_tif(rasdict, grid_zi, targetgrid, targetepsg, outputDir+outputFile)
-    
+            logger.info('Finish writing regridded data to tiff file: '+outputDir+outputFile)
+ 
             i = i + 1
 
     else:
