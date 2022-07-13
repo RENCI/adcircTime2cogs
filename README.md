@@ -1,9 +1,9 @@
-# adcirc2cog
+# adcircTime2cogs
 Produces COGs from from ADCIRC timeseries data, such as fort.63.
 
 ## Build
   cd build  
-  docker build -t adcirc2cog:latest .
+  docker build -t adcircTime2cogs:latest .
 
 ## Create Container
 
