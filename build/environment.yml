@@ -1,0 +1,21 @@
+name: adcircTime2cogs 
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - dask
+  - pandas
+  - gdal
+  - rasterio
+  - dask-jobqueue
+  - ipywidgets
+  - xarray
+  - widgetsnbextension
+  - dask-labextension
+  - dask-kubernetes
+  - dask-gateway
+  - dask-geopandas
+  - pip
+  - pip:
+      - rioxarray
+      - intake_geopandas
