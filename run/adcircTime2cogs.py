@@ -12,7 +12,10 @@ from scipy.spatial import Delaunay
 import dask
 import dask.array as da
 
-import rasterio as rio
+#import rasterio as rio
+from rasterio.io import MemoryFile
+from rio_cogeo.cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
 
 import geopandas as gpd
 import dask_geopandas as dgp
@@ -114,6 +117,7 @@ def write_tif(rasdict, zi_lin, targetgrid, targetepsg, filename='test.tif'):
           'transform': aft}
 
     # output a geo-referenced tiff
+    """
     dst = rio.open(filename, 'w', **md)
     try:
         dst.write(zi_lin, 1)
@@ -122,6 +126,21 @@ def write_tif(rasdict, zi_lin, targetgrid, targetepsg, filename='test.tif'):
         print('Failed to write Tiff file')
         # Failed to write TIF file to {filename}
     dst.close()
+    """
+    with MemoryFile() as memfile:
+        with memfile.open(**md) as mem:
+            # Populate the input file with numpy array
+            mem.write(zi_lin, 1)
+
+            dst_profile = cog_profiles.get("deflate")
+        
+            cog_translate(
+                mem,
+                filename,
+                dst_profile,
+                in_memory=True,
+                quiet=True,
+            )
 
 # Make output directory if it does not exist
 def makeDirs(outputDir):
