@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-import sys, os, argparse, shutil, glob, pdb
-from pathlib import Path
+import sys, os, argparse, shutil, glob
 from loguru import logger
 
 import pandas as pd
@@ -12,16 +11,13 @@ from scipy.spatial import Delaunay
 import dask
 import dask.array as da
 
-#import rasterio as rio
-from rasterio.io import MemoryFile
-from rio_cogeo.cogeo import cog_translate
-from rio_cogeo.profiles import cog_profiles
-
 import geopandas as gpd
 import dask_geopandas as dgp
 
 from affine import Affine
 from pyproj import CRS
+
+from datacube.utils.cog import write_cog
 
 import utilities.adcirc_dask_utilities as adcirc_utilities
 
@@ -90,57 +86,22 @@ def compute_geotiff_grid(targetgrid, adcircepsg, targetepsg):
             'nx':   x.shape,
             'ny':   y.shape}
 
-def write_tif(rasdict, zi_lin, targetgrid, targetepsg, filename='test.tif'):
-    """
-    Construct the new TIF file and store it to disk in filename
-    """
-    xm0, ym0 = rasdict['uplx'], rasdict['uply']
-
-    a=targetgrid['res'][0]
-    b=0
-    c=xm0
-    d=0
-    e=-targetgrid['res'][0]
-    f=ym0
-
-    aft=Affine(a,b,c,b,e,f)*Affine.rotation(-targetgrid['theta'][0])
-
-    # TIF transform {aft}
-
-    md = {'crs':       targetepsg,
-          'driver':    'GTiff',
-          'height':    targetgrid['ny'][0],
-          'width':     targetgrid['nx'][0],
-          'count':     1,
-          'dtype':     zi_lin.dtype,
-          'nodata':    -99999,
-          'transform': aft}
-
-    # output a geo-referenced tiff
-    """
-    dst = rio.open(filename, 'w', **md)
-    try:
-        dst.write(zi_lin, 1)
-        # Wrote TIF file to {filename}
-    except:
-        print('Failed to write Tiff file')
-        # Failed to write TIF file to {filename}
-    dst.close()
-    """
-    with MemoryFile() as memfile:
-        with memfile.open(**md) as mem:
-            # Populate the input file with numpy array
-            mem.write(zi_lin, 1)
-
-            dst_profile = cog_profiles.get("deflate")
-        
-            cog_translate(
-                mem,
-                filename,
-                dst_profile,
-                in_memory=True,
-                quiet=True,
-            )
+def create_xarray(rasdict, zi_in, targetepsg):
+    x = rasdict['xxm'][0,:]
+    y = rasdict['yym'][:,0] 
+    data = xr.DataArray(
+        zi_in,
+        dims=("y", "x"),
+        coords={
+            "y": xr.DataArray(y, name="y", dims="y"),
+            "x": xr.DataArray(x, name="x", dims="x"),
+        },
+        attrs={
+        "crs": targetepsg,
+        },
+    )
+    
+    return data
 
 # Make output directory if it does not exist
 def makeDirs(outputDir):
@@ -234,7 +195,8 @@ def main(args):
                 logger.info('Finish regid of timestep')
 
             logger.info('Start writing regridded data to tiff file: '+outputDir+outputFile)
-            write_tif(rasdict, grid_zi, targetgrid, targetepsg, outputDir+outputFile)
+            zi_data = create_xarray(rasdict, grid_zi, targetepsg)
+            write_cog(geo_im=zi_data,fname=outputDir+outputFile,overwrite=True)
             logger.info('Finish writing regridded data to tiff file: '+outputDir+outputFile)
  
             i = i + 1

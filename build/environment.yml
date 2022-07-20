@@ -5,10 +5,10 @@ dependencies:
   - python=3.8
   - dask
   - scipy
+  - datacube
   - matplotlib-base
   - pandas
   - gdal
-  - rasterio
   - dask-jobqueue
   - ipywidgets
   - netcdf4
@@ -20,7 +20,5 @@ dependencies:
   - dask-geopandas
   - pip
   - pip:
-      - rioxarray
-      - rio-cogeo
       - intake_geopandas
       - loguru
