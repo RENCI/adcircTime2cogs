@@ -19,23 +19,15 @@ Produces COGs from from ADCIRC timeseries data, such as fort.63.
 
     conda activate adcircTime2cogs
 
-  Now you can run the command to create a tiff:
+  Now you can run the command to create the COGs:
 
-    python adcircTime2geotiffs.py --inputDIR /data/sj37392jdj28538/input --outputDIR /data/sj37392jdj28538/cogeo --inputFile fort.63.nc --inputVariable zeta
-
-  and the command to create the cog file:
-
-    python geotiffs2cogs.py --inputDIR /data/sj37392jdj28538/cogeo --finalDIR /data/sj37392jdj28538/final/cogeo --inputParam fort63
+    python adcircTime2cogs.py --inputDIR /data/sj37392jdj28538/input --outputDIR /data/sj37392jdj28538/cogeo --inputFile fort.63.nc --inputVariable zeta
 
 ## Running in Kubernetes
 
-When running the container in Kubernetes the command line for adcircTime2geotiffs.py is:
+When running the container in Kubernetes the command line for adcircTime2cogs.py is:
 
-    conda run -n adcirctime2cogs python adcirc2geotiff.py --inputDIR /xxxx/xxxxxxxxxx/input --outputDIR /xxxx/xxxxxxxxxx/cogeo --inputFile fort.63.nc 
-
-and the command line for geotiffs2cogs.py is:
-
-    conda run -n adcirctime2cogs python geotiffs2cogs.py --inputDIR /xxxx/xxxxxxxxxx/cogeo --finalDIR /xxxx/xxxxxxxxxx/final/cogeo --inputParam fort63
+    conda run -n adcirctime2cogs python adcircTime2cogs.py --inputDIR /xxxx/xxxxxxxxxx/input --outputDIR /xxxx/xxxxxxxxxx/cogeo --inputFile fort.63.nc 
 
 Where /xxxx/xxxxxxxxxx would be a specified directory path.
  

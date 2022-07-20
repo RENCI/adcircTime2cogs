@@ -14,10 +14,11 @@ import dask.array as da
 import geopandas as gpd
 import dask_geopandas as dgp
 
+import xarray as xr
+from datacube.utils.cog import write_cog
+
 from affine import Affine
 from pyproj import CRS
-
-from datacube.utils.cog import write_cog
 
 import utilities.adcirc_dask_utilities as adcirc_utilities
 
@@ -115,17 +116,21 @@ def makeDirs(outputDir):
 
 @logger.catch
 def main(args):
+    # Remove old logger and start new logger
+    logger.remove()
+    log_path = os.path.join(os.getenv('LOG_PATH', os.path.join(os.path.dirname(__file__), 'logs')), '')
+    logger.add(log_path+'adcircTime2cogs.log', level='DEBUG')
+    logger.add(sys.stdout, level="DEBUG")
+    logger.add(sys.stderr, level="ERROR")
+    logger.info('Started log file adcircTime2cogs.log')
+
     # get input variables from args
     inputDir = os.path.join(args.inputDir, '')
     outputDir = os.path.join(args.outputDir, '')
     inputFile = args.inputFile
     inputVariable = args.inputVariable
     outputDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.')), '')
-
-    # Remove old logger and start new logger
-    logger.remove()
-    log_path = os.path.join(os.getenv('LOG_PATH', os.path.join(os.path.dirname(__file__), 'logs')), '')
-    logger.add(log_path+'geotiffTime2cogs.log', level='DEBUG')
+    logger.info('Got input variables including inputDir '+inputDir+'.')
 
     adcircepsg = 'EPSG:4326'
     targetepsg = 'EPSG:4326'
