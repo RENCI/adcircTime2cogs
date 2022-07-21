@@ -21,7 +21,7 @@ Produces COGs from from ADCIRC timeseries data, such as fort.63.
 
   Now you can run the command to create the COGs:
 
-    python adcircTime2cogs.py --inputDIR /data/sj37392jdj28538/input --outputDIR /data/sj37392jdj28538/cogeo --inputFile fort.63.nc --inputVariable zeta
+    python adcircTime2cogs.py --inputDIR /data/sj37392jdj28538/input --outputDIR /data/sj37392jdj28538/cogeo --finalDIR /data/sj37392jdj28538/final/cogeo --inputFile fort.63.nc --inputVariable zeta
 
 ## Running in Kubernetes
 

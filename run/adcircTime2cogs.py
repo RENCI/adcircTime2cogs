@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, argparse, shutil, glob
+import sys, os, argparse, shutil, glob, tarfile
 from loguru import logger
 
 import pandas as pd
@@ -105,14 +105,21 @@ def create_xarray(rasdict, zi_in, targetepsg):
     return data
 
 # Make output directory if it does not exist
-def makeDirs(outputDir):
-    # Create cogeo directory path
-    if not os.path.exists(outputDir):
+def makeDirs(dirPath):
+    # Create directory path
+    if not os.path.exists(dirPath):
         mode = 0o777
-        os.makedirs(outputDir, mode, exist_ok=True)
-        logger.info('Made directory '+outputDir+ '.')
+        os.makedirs(dirPath, mode, exist_ok=True)
+        logger.info('Made directory '+dirPath+ '.')
     else:
-        logger.info('Directory '+outputDir+' already made.')
+        logger.info('Directory '+dirPath+' already made.')
+
+# Tar directory so it can be moved to geoserver
+def tardir(path, tar_name):
+    with tarfile.open(tar_name, "w") as tar_handle:
+        for root, dirs, files in os.walk(path):
+            for file in files:
+                tar_handle.add(os.path.join(root, file))
 
 @logger.catch
 def main(args):
@@ -127,9 +134,12 @@ def main(args):
     # get input variables from args
     inputDir = os.path.join(args.inputDir, '')
     outputDir = os.path.join(args.outputDir, '')
+    finalDir = os.path.join(args.finalDir, '')
     inputFile = args.inputFile
     inputVariable = args.inputVariable
-    outputDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.')), '')
+    outputVarDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.')), '')
+    runDir = '/home/nru/repos/adcircTime2cogs/run'
+    outputTarFile = "".join(inputFile[:-3].split('.'))+'.tar'
     logger.info('Got input variables including inputDir '+inputDir+'.')
 
     adcircepsg = 'EPSG:4326'
@@ -141,7 +151,7 @@ def main(args):
         logger.add(lambda _: sys.exit(1), level="ERROR")
 
         # Make output directory
-        makeDirs(outputDir.strip())
+        makeDirs(outputVarDir.strip())
 
         logger.info('Read '+inputDir+inputFile+' and create agdict')
         nc, agdict = adcirc_utilities.extract_url_grid(inputDir+inputFile)
@@ -199,12 +209,35 @@ def main(args):
                 grid_zi[mindex] = np.nan
                 logger.info('Finish regid of timestep')
 
-            logger.info('Start writing regridded data to tiff file: '+outputDir+outputFile)
+            logger.info('Start writing regridded data to tiff file: '+outputVarDir+outputFile)
             zi_data = create_xarray(rasdict, grid_zi, targetepsg)
-            write_cog(geo_im=zi_data,fname=outputDir+outputFile,overwrite=True)
-            logger.info('Finish writing regridded data to tiff file: '+outputDir+outputFile)
+            write_cog(geo_im=zi_data,fname=outputVarDir+outputFile,overwrite=True)
+            logger.info('Finish writing regridded data to tiff file: '+outputVarDir+outputFile)
  
             i = i + 1
+
+        os.chdir(outputDir)
+        tardir(outputTarFile.split('.')[0], outputTarFile)
+
+        try:
+            shutil.rmtree(outputTarFile.split('.')[0])
+            logger.info('Removed variable directory: '+outputTarFile.split('.')[0])
+        except OSError as err:
+            logger.error('Problem removing variable directory '+outputTarFile.split('.')[0])
+            sys.exit(1)
+
+        # Create final directory path
+        makeDirs(finalDir.strip())
+
+        # Move cogs to final directory
+        try:
+            shutil.move(outputTarFile, finalDir)
+            logger.info('Moved tar file '+outputTarFile+' to '+finalDir+' directory.')
+        except OSError as err:
+            logger.error('Failed to move tar file '+outputTarFile+' to '+finalDir+' directory.')
+            sys.exit(1)
+
+        os.chdir(runDir)
 
     else:
          logger.info(inputFile+' does not exist')
@@ -217,6 +250,7 @@ if __name__ == "__main__":
     # Optional argument which requires a parameter (eg. -d test)
     parser.add_argument("--inputDIR", "--inputDir", help="Input directory path", action="store", dest="inputDir", required=True)
     parser.add_argument("--outputDIR", "--outputDir", help="Output directory path", action="store", dest="outputDir", required=True)
+    parser.add_argument("--finalDIR", "--finalDir", help="Final directory path", action="store", dest="finalDir", required=True)
     parser.add_argument("--inputFILE", "--inputFile", help="Input file name", action="store", dest="inputFile", required=True)
     parser.add_argument("--inputPARAM", "--inputVariable", help="Input parameter", action="store", dest="inputVariable")
 
