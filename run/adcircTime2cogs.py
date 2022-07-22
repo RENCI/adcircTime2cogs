@@ -197,17 +197,17 @@ def main(args):
             advardict = adcirc_utilities.get_adcirc_slice(nc, inputVariable, i)
 
             if i == 0:
-                logger.info('Start regid of timestep')
+                logger.info('Start regid of timestep: '+fileDateTime)
                 interp_lin = Tri.LinearTriInterpolator(triang, advardict['data'])
                 grid_zi = interp_lin(xxm, yym)
                 mindex = np.where(grid_zi.mask == True)
-                logger.info('Finish regid of timestep')
+                logger.info('Finish regid of timestepp: '+fileDateTime)
             else:
-                logger.info('Start regid of timestep')
+                logger.info('Start regid of timestepp: '+fileDateTime)
                 interpolator = interpolate.LinearNDInterpolator(triangd, advardict['data'])
                 grid_zi = interpolator((xxm, yym))
                 grid_zi[mindex] = np.nan
-                logger.info('Finish regid of timestep')
+                logger.info('Finish regid of timestepp: '+fileDateTime)
 
             logger.info('Start writing regridded data to tiff file: '+outputVarDir+outputFile)
             zi_data = create_xarray(rasdict, grid_zi, targetepsg)
