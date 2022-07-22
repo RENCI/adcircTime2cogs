@@ -187,7 +187,9 @@ def main(args):
         logger.info('Computer ones for mask')
         advardict = adcirc_utilities.get_adcirc_slice(nc, inputVariable, 0)
         z_ones = np.ones((len(advardict['data']),), dtype=float)
+        logger.info('Create onesinterp_lin')
         onesinterp_lin = Tri.LinearTriInterpolator(triang, z_ones)
+        logger.info('Compute ones')
         ones_z = onesinterp_lin(xxm,yym)
 
         mindex = np.where(ones_z.mask == True)
