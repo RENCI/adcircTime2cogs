@@ -184,6 +184,14 @@ def main(args):
         rasdict = compute_geotiff_grid(targetgrid, adcircepsg, targetepsg)
         xxm, yym = rasdict['xxm'].rechunk(4000,4419,2), rasdict['yym'].rechunk(4000,4419,2)
 
+        logger.info('Computer ones for mask')
+        advardict = adcirc_utilities.get_adcirc_slice(nc, inputVariable, 0)
+        z_ones = np.ones((len(advardict['data']),), dtype=float)
+        onesinterp_lin = Tri.LinearTriInterpolator(triang, z_ones)
+        ones_z = onesinterp_lin(xxm,yym)
+
+        mindex = np.where(ones_z.mask == True)
+
         i = 0
 
         logger.info('Loop through each timestep in '+inputFile+' and regrid data')
@@ -196,18 +204,11 @@ def main(args):
             logger.info('Get data for timestep in '+inputFile)
             advardict = adcirc_utilities.get_adcirc_slice(nc, inputVariable, i)
 
-            if i == 0:
-                logger.info('Start regrid of timestep: '+fileDateTime)
-                interp_lin = Tri.LinearTriInterpolator(triang, advardict['data'])
-                grid_zi = interp_lin(xxm, yym)
-                mindex = np.where(grid_zi.mask == True)
-                logger.info('Finish regrid of timestepp: '+fileDateTime)
-            else:
-                logger.info('Start regrid of timestepp: '+fileDateTime)
-                interpolator = interpolate.LinearNDInterpolator(triangd, advardict['data'])
-                grid_zi = interpolator((xxm, yym))
-                grid_zi[mindex] = np.nan
-                logger.info('Finish regrid of timestepp: '+fileDateTime)
+            logger.info('Start regrid of timestepp: '+fileDateTime)
+            interpolator = interpolate.LinearNDInterpolator(triangd, advardict['data'])
+            grid_zi = interpolator((xxm, yym))
+            grid_zi[mindex] = np.nan
+            logger.info('Finish regrid of timestepp: '+fileDateTime)
 
             logger.info('Start writing regridded data to tiff file: '+outputVarDir+outputFile)
             zi_data = create_xarray(rasdict, grid_zi, targetepsg)
