@@ -27,7 +27,7 @@ Produces COGs from from ADCIRC timeseries data, such as fort.63.
 
 When running the container in Kubernetes the command line for adcircTime2cogs.py is:
 
-    conda run -n adcirctime2cogs python adcircTime2cogs.py --inputDIR /xxxx/xxxxxxxxxx/input --outputDIR /xxxx/xxxxxxxxxx/cogeo --inputFile fort.63.nc 
+    conda run -n adcirctime2cogs python adcircTime2cogs.py --inputDIR /xxxx/xxxxxxxxxx/input --outputDIR /xxxx/xxxxxxxxxx/cogeo --finalDIR /xxxx/xxxxxxxxxx/final/cogeo --inputFile fort.63.nc  --inputVariable zeta
 
 Where /xxxx/xxxxxxxxxx would be a specified directory path.
  
