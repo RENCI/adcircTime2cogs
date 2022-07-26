@@ -142,14 +142,21 @@ def main(args):
     outputTarFile = "".join(inputFile[:-3].split('.'))+'.tar'
     logger.info('Got input variables including inputDir '+inputDir+'.')
 
+    # Define tmp directory
+    tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_dask_tmp/"
+
+    # Make tmpDir 
+    os.makedirs(tmpDir, exist_ok=True)
+
+    # Config DASK to use tmpDir
+    dask.config.set(temporary_directory=tmpDir)
+    logger.info('Configure tmp directory for DASK: '+tmpDir)
+
     adcircepsg = 'EPSG:4326'
     targetepsg = 'EPSG:4326'
 
     # Check to see if input directory exits and if it does create tiff
     if os.path.exists(inputDir+inputFile):
-        # When error exit program
-        logger.add(lambda _: sys.exit(1), level="ERROR")
-
         # Make output directory
         makeDirs(outputVarDir.strip())
 
@@ -220,6 +227,7 @@ def main(args):
             i = i + 1
 
         os.chdir(outputDir)
+        logger.info('Tar directory: '+outputTarFile.split('.')[0])
         tardir(outputTarFile.split('.')[0], outputTarFile)
 
         try:
