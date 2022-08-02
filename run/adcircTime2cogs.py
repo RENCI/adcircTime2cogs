@@ -204,12 +204,11 @@ def main(args):
         i = 0
 
         logger.info('Loop through each timestep in '+inputFile+' and regrid data')
-        for timestep in nc.variables['time']:
+        for timestep in nc.variables['time'][0:4]:
             logger.info('Get file data time from '+inputFile)
-            fileDateTime = str(timestep.values)
+            fileDateTime = "".join("".join(str(timestep.values).split('-')).split(':')).split('.')[0]+'Z'
     
             outputFile = '_'.join(['_'.join(inputFile.split('.')[0:2]),inputVariable,fileDateTime+'.tiff'])
-
             logger.info('Get data for timestep in '+inputFile)
             advardict = adcirc_utilities.get_adcirc_slice(nc, inputVariable, i)
 
@@ -225,6 +224,19 @@ def main(args):
             logger.info('Finish writing regridded data to tiff file: '+outputVarDir+outputFile)
  
             i = i + 1
+
+        logger.info('Create meta file for timeseries mosaic COGs')
+        f = open(outputVarDir+'indexer.properties', 'w')
+        f.write('TimeAttribute=ingestion\nElevationAttribute=elevation\nSchema=*the_geom:Polygon,location:String,ingestion:java.util.Date,elevation:Integer\nPropertyCollectors=TimestampFileNameExtractorSPI[timeregex](ingestion)\n')
+        f.close()
+
+        f = open(outputVarDir+'timeregex.properties', 'w')
+        f.write('regex=[0-9]{8}T[0-9]{6}\n')
+        f.close()
+
+        f = open(outputVarDir+'datastore.properties', 'w')
+        f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost=localhost\nport=5432\ndatabase=apsviz_cog_mosaic\nschema=public\nuser=apsviz_cog_mosaic\npasswd=cog_mosaic\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
+        f.close()
 
         os.chdir(outputDir)
         logger.info('Tar directory: '+outputTarFile.split('.')[0])

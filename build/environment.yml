@@ -6,6 +6,7 @@ dependencies:
   - dask
   - scipy
   - datacube
+  - mpire
   - matplotlib-base
   - pandas
   - gdal
