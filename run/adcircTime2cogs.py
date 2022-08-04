@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, argparse, shutil, glob, tarfile
+import sys, os, argparse, shutil, glob
 from loguru import logger
 
 import pandas as pd
@@ -114,23 +114,17 @@ def makeDirs(dirPath):
     else:
         logger.info('Directory '+dirPath+' already made.')
 
-# Tar directory so it can be moved to geoserver
-def tardir(path, tar_name):
-    with tarfile.open(tar_name, "w") as tar_handle:
-        for root, dirs, files in os.walk(path):
-            for file in files:
-                tar_handle.add(os.path.join(root, file))
-
 @logger.catch
 def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
-    # Creat additional run variables
-    outputVarDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.')), '')
-    runDir = '/home/nru/repos/adcircTime2cogs/run'
-    outputTarFile = "".join(inputFile[:-3].split('.'))+'.tar'
-    logger.info('Got input variables including inputDir '+inputDir+'.')
+    # Creat output variable directory 
+    outputVarDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-')), '')
+    logger.info('Created outputVarDir '+outputVarDir+'.')
+    # Creat final variable directory
+    finalVarDir = finalDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-'))
+    logger.info('Created finalVarDir '+finalVarDir+'.')
 
     # Define tmp directory
-    tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_dask_tmp/"
+    tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_"+inputVariable+"_dask_tmp/"
 
     # Make tmpDir 
     os.makedirs(tmpDir, exist_ok=True)
@@ -223,29 +217,23 @@ def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
     f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost=localhost\nport=5432\ndatabase=apsviz_cog_mosaic\nschema=public\nuser=apsviz_cog_mosaic\npasswd=cog_mosaic\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
     f.close()
 
-    os.chdir(outputDir)
-    logger.info('Tar directory: '+outputTarFile.split('.')[0])
-    tardir(outputTarFile.split('.')[0], outputTarFile)
+    logger.info('Zip directory: '+outputVarDir)
+    try:
+        zipOutputFilePath = shutil.make_archive(finalVarDir, 'zip', root_dir="/".join(outputVarDir.split('/')[:-2]), base_dir=outputVarDir.split('/')[-2])
+        logger.info('Zip outputVarDir '+outputVarDir+' to zip file: '+zipOutputFilePath)
+    except OSError as err:
+        logger.error('Problem zipping outputVarDir '+outpuVarDir+' to zip file: '+zipOutputFilePath)
+        sys.exit(1)
 
     try:
-        shutil.rmtree(outputTarFile.split('.')[0])
-        logger.info('Removed variable directory: '+outputTarFile.split('.')[0])
+        shutil.rmtree(outputVarDir)
+        logger.info('Removed variable directory: '+outputVarDir)
     except OSError as err:
-        logger.error('Problem removing variable directory '+outputTarFile.split('.')[0])
+        logger.error('Problem removing variable directory '+outputVarDir)
         sys.exit(1)
 
     # Create final directory path
     makeDirs(finalDir.strip())
-
-    # Move cogs to final directory
-    try:
-        shutil.move(outputTarFile, finalDir)
-        logger.info('Moved tar file '+outputTarFile+' to '+finalDir+' directory.')
-    except OSError as err:
-        logger.error('Failed to move tar file '+outputTarFile+' to '+finalDir+' directory.')
-        sys.exit(1)
-
-    os.chdir(runDir)
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """

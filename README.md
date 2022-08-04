@@ -9,7 +9,7 @@ Produces COGs from from ADCIRC timeseries data, such as fort.63.
 
   To create a stand alone container for testing use the command shown below:
 
-    docker run -ti --name adcirctime2cogs_latest --volume /directory/path/to/storage:/data/sj37392jdj28538 -d adcirctime2cogs /bin/bash
+    docker run -ti --name adcirctime2cogs_latest --volume /directory/path/to/storage:/data/4221-2022080406-namforecast -d adcirctime2cogs /bin/bash
 
   After the container has been created, you can access it using the following command:
 
@@ -21,13 +21,13 @@ Produces COGs from from ADCIRC timeseries data, such as fort.63.
 
   Now you can run the command to create the COGs:
 
-    python adcircTime2cogs.py --inputDIR /data/sj37392jdj28538/input --outputDIR /data/sj37392jdj28538/cogeo --finalDIR /data/sj37392jdj28538/final/cogeo --inputFile fort.63.nc --inputVariable zeta
+    python adcircTime2cogs.py --inputDIR /data/4221-2022080406-namforecast/input --outputDIR /data/4221-2022080406-namforecast/cogeo --finalDIR /data/4221-2022080406-namforecast/final/cogeo --inputFile fort.63.nc --inputVariable zeta
 
 ## Running in Kubernetes
 
 When running the container in Kubernetes the command line for adcircTime2cogs.py is:
 
-    conda run -n adcirctime2cogs python adcircTime2cogs.py --inputDIR /xxxx/xxxxxxxxxx/input --outputDIR /xxxx/xxxxxxxxxx/cogeo --finalDIR /xxxx/xxxxxxxxxx/final/cogeo --inputFile fort.63.nc  --inputVariable zeta
+    conda run -n adcircTime2cogs python adcircTime2cogs.py --inputDIR /data/xxxxxxxxxx/input --outputDIR /data/xxxxxxxxxx/cogeo --finalDIR /data/xxxxxxxxxx/final/cogeo --inputFile fort.63.nc  --inputVariable zeta
 
-Where /xxxx/xxxxxxxxxx would be a specified directory path.
+Where xxxxxxxxxx would be a specified model run name in the directory path.
  
