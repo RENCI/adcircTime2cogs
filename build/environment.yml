@@ -1,25 +1,25 @@
 name: adcircTime2cogs 
 channels:
   - conda-forge
+  - informaticslab
 dependencies:
-  - python=3.8
-  - dask
-  - scipy
-  - datacube
-  - mpire
-  - matplotlib-base
-  - pandas
-  - gdal
-  - dask-jobqueue
-  - ipywidgets
-  - netcdf4
-  - xarray
-  - widgetsnbextension
-  - dask-labextension
-  - dask-kubernetes
-  - dask-gateway
-  - dask-geopandas
-  - pip
-  - pip:
-      - intake_geopandas
-      - loguru
+  - python=3.9
+  - dask=2022.9.1
+  - scipy=1.9.1
+  - datacube=1.8.7
+  - mpire=2.6.0
+  - matplotlib-base=3.6.0
+  - pandas=1.5.0
+  - geopandas=0.11.1
+  - gdal=3.5.2
+  - dask-jobqueue=0.8.0
+  - ipywidgets=8.0.2
+  - netcdf4=1.6.1
+  - xarray=2022.6.0
+  - widgetsnbextension=4.0.3
+  - dask-labextension=5.3.0
+  - dask-kubernetes=2022.7.0
+  - dask-gateway=2022.6.1
+  - dask-geopandas=0.2.0
+  - loguru=0.6.0
+  - intake_geopandas=0.2.2
