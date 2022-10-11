@@ -66,12 +66,5 @@ COPY run/adcircTime2cogs.py run
 # set the python path
 ENV PYTHONPATH=/home/nru/adcircTime2cogs/run
 
-# set the location of the output directory
-ENV RUNTIMEDIR=/data
-ENV PKLDIR=/data/pkldir
-
-# set the log dir. use this for debugging if desired
-ENV LOG_PATH=/data/logs
-
 # example command line
 # python run/adcircTime2cogs.py --inputDIR /data/4271-33-nhcOfcl/cogeo --outputDIR /data/4271-33-nhcOfcl/cogeo --finalDIR /data/4271-33-nhcOfcl/final/cogeo --inputFile fort.63.nc --inputVariable zeta
