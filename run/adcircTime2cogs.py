@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-import sys, os, argparse, shutil, glob
+import sys
+import os
+import argparse
+import shutil
+import glob
 from loguru import logger
 
 import pandas as pd
@@ -214,7 +218,7 @@ def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
     f.close()
 
     f = open(outputVarDir+'datastore.properties', 'w')
-    f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost=localhost\nport=5432\ndatabase=apsviz_cog_mosaic\nschema=public\nuser=apsviz_cog_mosaic\npasswd=cog_mosaic\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
+    f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_DB_HOST']+'\nport='+os.environ['ASGS_DB_PORT']+'\ndatabase=apsviz_cog_mosaic\nschema=public\nuser='+os.environ['ASGS_DB_USERNAME']+'\npasswd='+os.environ['ASGS_DB_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
     f.close()
 
     logger.info('Zip directory: '+outputVarDir)
@@ -250,7 +254,7 @@ if __name__ == "__main__":
 
     # Remove old logger and start new logger
     logger.remove()
-    log_path = os.path.join(os.getenv('LOG_PATH', os.path.join(os.path.dirname(__file__), 'logs')), '')
+    log_path = os.path.join(os.getenv('LOG_PATH', os.path.join(os.path.dirname(__file__), '../logs')), '')
     logger.add(log_path+'adcircTime2cogs.log', level='DEBUG')
     logger.add(sys.stdout, level="DEBUG")
     logger.add(sys.stderr, level="ERROR")
