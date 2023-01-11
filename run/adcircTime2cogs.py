@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, pdb
+import sys
 import os
 import argparse
 import shutil
@@ -121,11 +121,10 @@ def makeDirs(dirPath):
         logger.info('Directory '+dirPath+' already made.')
 
 class mesh2tiff:
-    def __init__(self, inputDir, outputDir, finalDir, inputFile, inputVariable, chunkSize):
+    def __init__(self, inputDir, outputDir, finalDir, inputFile, inputVariable):
         # Make input variables accessable throughout class
         self.inputFile = inputFile
         self.inputVariable = inputVariable
-        self.chunkSize = chunkSize
 
         # Creat output variable directory 
         #self.outputVarDir = os.path.join(outputDir+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-')), '')
@@ -203,6 +202,7 @@ class mesh2tiff:
 
         # Define queue
         input_q = PQueue()
+        chunkSize = 10
 
         # Run regrid2Raster using multiprocessinng pool, and imput_list
         logger.info('Run regrid2Raster in Pool, with inputs_list')
@@ -210,7 +210,7 @@ class mesh2tiff:
         #    outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=chunkSize)
         #    pool.close()
         #    pool.terminate()
-        with Pool(processes=3) as pool:
+        with Pool(processes=4) as pool:
             try:
                outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=int(chunkSize))
                logger.info(outputs_list)
@@ -220,8 +220,6 @@ class mesh2tiff:
                pool.close()
                pool.terminate()
                pool.join()
-
-        #self.layer = None
 
         logger.info('Create meta file for timeseries mosaic COGs')
         f = open(self.outputVarDir+'indexer.properties', 'w')
@@ -261,7 +259,7 @@ class mesh2tiff:
 
         logger.info('Start regrid of timestepp: '+fileDateTime)
         interpolator = interpolate.LinearNDInterpolator(self.triangd, advardict['data'])
-        #pdb.set_trace()
+
         grid_zi = interpolator((self.xxm, self.yym))
         grid_zi[self.mindex] = np.nan
         logger.info('Finish regrid of timestepp: '+fileDateTime)
@@ -269,7 +267,7 @@ class mesh2tiff:
         logger.info('Start writing regridded data to tiff file: '+self.outputVarDir+outputFile)
         zi_data = create_xarray(self.rasdict, grid_zi, self.targetepsg)
         write_cog(geo_im=zi_data, fname=self.outputVarDir+outputFile, overwrite=True)
-        logger.info('Finish writing regridded data to tiff file: '+self.outputVarDir+'/'+outputFile)
+        logger.info('Finish writing regridded data to tiff file: '+self.outputVarDir+outputFile)
 
 
 @logger.catch
@@ -287,9 +285,7 @@ def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
     # Create final directory path
     makeDirs(finalDir.strip())
 
-    chunkSize = '2'
-
-    mesh2tiff(inputDir, outputDir, finalDir, inputFile, inputVariable, chunkSize)
+    mesh2tiff(inputDir, outputDir, finalDir, inputFile, inputVariable)
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
