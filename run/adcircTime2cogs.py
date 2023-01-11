@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-import sys
+import sys, pdb
 import os
 import argparse
 import shutil
-import glob
 from loguru import logger
 
 import pandas as pd
@@ -23,6 +22,9 @@ from datacube.utils.cog import write_cog
 
 from affine import Affine
 from pyproj import CRS
+
+from multiprocessing.pool import ThreadPool as Pool
+from multiprocessing import Queue as PQueue
 
 import utilities.adcirc_dask_utilities as adcirc_utilities
 
@@ -118,126 +120,176 @@ def makeDirs(dirPath):
     else:
         logger.info('Directory '+dirPath+' already made.')
 
+class mesh2tiff:
+    def __init__(self, inputDir, outputDir, finalDir, inputFile, inputVariable, chunkSize):
+        # Make input variables accessable throughout class
+        self.inputFile = inputFile
+        self.inputVariable = inputVariable
+        self.chunkSize = chunkSize
+
+        # Creat output variable directory 
+        #self.outputVarDir = os.path.join(outputDir+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-')), '')
+        self.outputVarDir = os.path.join(outputDir+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable, '')
+        logger.info('Created outputVarDir name '+self.outputVarDir+'.')
+        # Creat final variable directory
+        #finalVarDir = finalDir+"".join(self.inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-'))
+        finalVarDir = os.path.join(finalDir+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable, '')
+        logger.info('Created finalVarDir name '+finalVarDir+'.')
+
+        # Make output directory
+        makeDirs(self.outputVarDir.strip())
+
+        logger.info('Read '+inputDir+self.inputFile+' and create agdict')
+        self.nc, self.agdict = adcirc_utilities.extract_url_grid(inputDir+self.inputFile)
+
+        self.adcircepsg = 'EPSG:4326'
+        self.targetepsg = 'EPSG:4326'
+        self.agdict['crs'] = self.adcircepsg
+
+        logger.info('Define targetgrid')
+        targetgrid = {'res':[0.005],
+                      'nx':[8838],
+                      'ny':[8000],
+                      'theta':[0]}
+        targetgrid['ul_latitude'] = self.agdict['lat'].max()
+        targetgrid['ul_longitude'] = self.agdict['lon'].min()
+        targetgrid['lr_longitude'] = self.agdict['lon'].max()
+        targetgrid['lr_latitude'] = self.agdict['lat'].min()
+
+        logger.info('Create geopandas DataFrame from agdict and tartgetepsg')
+        gdf = construct_geopandas(self.agdict, self.targetepsg)
+        xtemp, ytemp = gdf['geometry'].x, gdf['geometry'].y
+
+        logger.info('Compute geotiff grid coordinates')
+        self.rasdict = compute_geotiff_grid(targetgrid, self.adcircepsg, self.targetepsg)
+        self.xxm, self.yym = self.rasdict['xxm'].rechunk(4000,4419,2), self.rasdict['yym'].rechunk(4000,4419,2)
+
+        logger.info('Computer ones for mask')
+        advardict = adcirc_utilities.get_adcirc_slice(self.nc, inputVariable, 0)
+        z_ones = np.ones((len(advardict['data']),), dtype=float)
+
+        logger.info('Create triang using Tri.Triangulation')
+        triang = Tri.Triangulation(xtemp, ytemp, triangles=self.agdict['ele'])
+        triang.triangles = da.from_array(triang.triangles).rechunk(445513,8)
+        triang.x = da.from_array(triang.x).rechunk(302240,6)
+        triang.y = da.from_array(triang.y).rechunk(302240,6)
+
+        logger.info('Create traingd using Delaunay')
+        self.triangd = Delaunay(np.stack((self.agdict['lon'].values, self.agdict['lat'].values), axis=1))
+
+        logger.info('Create onesinterp_lin')
+        onesinterp_lin = Tri.LinearTriInterpolator(triang, z_ones)
+        logger.info('Compute ones')
+        ones_z = onesinterp_lin(self.xxm,self.yym)
+
+        self.mindex = np.where(ones_z.mask == True)
+
+         # Define input_list times index
+        inputs_list = []
+        i = 0
+
+        logger.info('Loop through each timestep in '+self.inputFile+' and regrid data')
+        for timestep in self.nc.variables['time']:
+            logger.info('Get file data time from '+self.inputFile)
+            fileDateTime = "".join("".join(str(timestep.values).split('-')).split(':')).split('.')[0]+'Z'
+
+            # Create outputFile name
+            outputFile = '_'.join(['_'.join(self.inputFile.split('.')[0:2]),inputVariable,fileDateTime+'.tiff'])
+            logger.info('Created outputFile name: '+outputFile+'.')
+
+            inputs_list.append([fileDateTime, i, outputFile])
+
+            i = i + 1
+
+        # Define queue
+        input_q = PQueue()
+
+        # Run regrid2Raster using multiprocessinng pool, and imput_list
+        logger.info('Run regrid2Raster in Pool, with inputs_list')
+        #with Pool(processes=4) as pool:
+        #    outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=chunkSize)
+        #    pool.close()
+        #    pool.terminate()
+        with Pool(processes=3) as pool:
+            try:
+               outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=int(chunkSize))
+               logger.info(outputs_list)
+            except Exception as e:
+               logger.error(e)
+            finally:
+               pool.close()
+               pool.terminate()
+               pool.join()
+
+        #self.layer = None
+
+        logger.info('Create meta file for timeseries mosaic COGs')
+        f = open(self.outputVarDir+'indexer.properties', 'w')
+        f.write('TimeAttribute=ingestion\nElevationAttribute=elevation\nSchema=*the_geom:Polygon,location:String,ingestion:java.util.Date,elevation:Integer\nPropertyCollectors=TimestampFileNameExtractorSPI[timeregex](ingestion)\n')
+        f.close()
+
+        f = open(self.outputVarDir+'timeregex.properties', 'w')
+        f.write('regex=[0-9]{8}T[0-9]{6}\n')
+        f.close()
+
+        f = open(self.outputVarDir+'datastore.properties', 'w')
+        f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_HOST']+'\nport='+os.environ['ASGS_PORT']+'\ndatabase='+os.environ['COG_MOSAIC_DATABASE']+'\nschema=public\nuser='+os.environ['COG_MOSAIC_USERNAME']+'\npasswd='+os.environ['COG_MOSAIC_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
+        f.close()
+
+        logger.info('Zip directory: '+self.outputVarDir)
+        try:
+            zipOutputFilePath = shutil.make_archive(finalVarDir, 'zip', root_dir="/".join(self.outputVarDir.split('/')[:-2]), base_dir=self.outputVarDir.split('/')[-2])
+            logger.info('Zip outputVarDir '+self.outputVarDir+' to zip file: '+zipOutputFilePath)
+        except OSError as err:
+            logger.error('Problem zipping outputVarDir '+self.outputVarDir+' to zip file: '+zipOutputFilePath)
+            sys.exit(1)
+
+        try:
+            shutil.rmtree(self.outputVarDir)
+            logger.info('Removed variable directory: '+self.outputVarDir)
+        except OSError as err:
+            logger.error('Problem removing variable directory '+self.outputVarDir)
+            sys.exit(1)
+
+    def regrid2Raster(self, inputList):
+        fileDateTime = inputList[1][0]
+        time_index = inputList[1][1]
+        outputFile = inputList[1][2]
+
+        logger.info('Get data for timestep '+fileDateTime+' in '+self.inputFile)
+        advardict = adcirc_utilities.get_adcirc_slice(self.nc, self.inputVariable, time_index)
+
+        logger.info('Start regrid of timestepp: '+fileDateTime)
+        interpolator = interpolate.LinearNDInterpolator(self.triangd, advardict['data'])
+        #pdb.set_trace()
+        grid_zi = interpolator((self.xxm, self.yym))
+        grid_zi[self.mindex] = np.nan
+        logger.info('Finish regrid of timestepp: '+fileDateTime)
+
+        logger.info('Start writing regridded data to tiff file: '+self.outputVarDir+outputFile)
+        zi_data = create_xarray(self.rasdict, grid_zi, self.targetepsg)
+        write_cog(geo_im=zi_data, fname=self.outputVarDir+outputFile, overwrite=True)
+        logger.info('Finish writing regridded data to tiff file: '+self.outputVarDir+'/'+outputFile)
+
+
 @logger.catch
 def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
-    # Creat output variable directory 
-    outputVarDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-')), '')
-    logger.info('Created outputVarDir '+outputVarDir+'.')
-    # Creat final variable directory
-    finalVarDir = finalDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-'))
-    logger.info('Created finalVarDir '+finalVarDir+'.')
-
     # Define tmp directory
     tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_"+inputVariable+"_dask_tmp/"
 
     # Make tmpDir 
-    os.makedirs(tmpDir, exist_ok=True)
+    makeDirs(tmpDir.strip())
 
     # Config DASK to use tmpDir
     dask.config.set(temporary_directory=tmpDir)
     logger.info('Configure tmp directory for DASK: '+tmpDir)
 
-    adcircepsg = 'EPSG:4326'
-    targetepsg = 'EPSG:4326'
-
-    # Make output directory
-    makeDirs(outputVarDir.strip())
-
-    logger.info('Read '+inputDir+inputFile+' and create agdict')
-    nc, agdict = adcirc_utilities.extract_url_grid(inputDir+inputFile)
-    agdict['crs'] = adcircepsg
-
-    logger.info('Define targetgrid')
-    targetgrid = {'res':[0.005],
-                  'nx':[8838],
-                  'ny':[8000],
-                  'theta':[0]}
-    targetgrid['ul_latitude'] = agdict['lat'].max()
-    targetgrid['ul_longitude'] = agdict['lon'].min()
-    targetgrid['lr_longitude'] = agdict['lon'].max()
-    targetgrid['lr_latitude'] = agdict['lat'].min()
-
-    logger.info('Create geopandas DataFrame from agdict and tartgetepsg')
-    gdf = construct_geopandas(agdict, targetepsg)
-    xtemp, ytemp = gdf['geometry'].x, gdf['geometry'].y
-
-    logger.info('Create triang using Tri.Triangulation')
-    triang = Tri.Triangulation(xtemp, ytemp, triangles=agdict['ele'])
-    triang.triangles = da.from_array(triang.triangles).rechunk(445513,8)
-    triang.x = da.from_array(triang.x).rechunk(302240,6)
-    triang.y = da.from_array(triang.y).rechunk(302240,6)
-
-    logger.info('Create traingd using Delaunay')
-    triangd = Delaunay(np.stack((agdict['lon'].values, agdict['lat'].values), axis=1))
-
-    logger.info('Compute geotiff grid coordinates')
-    rasdict = compute_geotiff_grid(targetgrid, adcircepsg, targetepsg)
-    xxm, yym = rasdict['xxm'].rechunk(4000,4419,2), rasdict['yym'].rechunk(4000,4419,2)
-
-    logger.info('Computer ones for mask')
-    advardict = adcirc_utilities.get_adcirc_slice(nc, inputVariable, 0)
-    z_ones = np.ones((len(advardict['data']),), dtype=float)
-    logger.info('Create onesinterp_lin')
-    onesinterp_lin = Tri.LinearTriInterpolator(triang, z_ones)
-    logger.info('Compute ones')
-    ones_z = onesinterp_lin(xxm,yym)
-
-    mindex = np.where(ones_z.mask == True)
-
-    i = 0
-
-    logger.info('Loop through each timestep in '+inputFile+' and regrid data')
-    for timestep in nc.variables['time']:
-        logger.info('Get file data time from '+inputFile)
-        fileDateTime = "".join("".join(str(timestep.values).split('-')).split(':')).split('.')[0]+'Z'
-
-        outputFile = '_'.join(['_'.join(inputFile.split('.')[0:2]),inputVariable,fileDateTime+'.tiff'])
-        logger.info('Get data for timestep in '+inputFile)
-        advardict = adcirc_utilities.get_adcirc_slice(nc, inputVariable, i)
-
-        logger.info('Start regrid of timestepp: '+fileDateTime)
-        interpolator = interpolate.LinearNDInterpolator(triangd, advardict['data'])
-        grid_zi = interpolator((xxm, yym))
-        grid_zi[mindex] = np.nan
-        logger.info('Finish regrid of timestepp: '+fileDateTime)
-
-        logger.info('Start writing regridded data to tiff file: '+outputVarDir+outputFile)
-        zi_data = create_xarray(rasdict, grid_zi, targetepsg)
-        write_cog(geo_im=zi_data,fname=outputVarDir+outputFile,overwrite=True)
-        logger.info('Finish writing regridded data to tiff file: '+outputVarDir+outputFile)
-
-        i = i + 1
-
-    logger.info('Create meta file for timeseries mosaic COGs')
-    f = open(outputVarDir+'indexer.properties', 'w')
-    f.write('TimeAttribute=ingestion\nElevationAttribute=elevation\nSchema=*the_geom:Polygon,location:String,ingestion:java.util.Date,elevation:Integer\nPropertyCollectors=TimestampFileNameExtractorSPI[timeregex](ingestion)\n')
-    f.close()
-
-    f = open(outputVarDir+'timeregex.properties', 'w')
-    f.write('regex=[0-9]{8}T[0-9]{6}\n')
-    f.close()
-
-    f = open(outputVarDir+'datastore.properties', 'w')
-    f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_DB_HOST']+'\nport='+os.environ['ASGS_DB_PORT']+'\ndatabase=apsviz_cog_mosaic\nschema=public\nuser='+os.environ['ASGS_DB_USERNAME']+'\npasswd='+os.environ['ASGS_DB_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
-    f.close()
-
-    logger.info('Zip directory: '+outputVarDir)
-    try:
-        zipOutputFilePath = shutil.make_archive(finalVarDir, 'zip', root_dir="/".join(outputVarDir.split('/')[:-2]), base_dir=outputVarDir.split('/')[-2])
-        logger.info('Zip outputVarDir '+outputVarDir+' to zip file: '+zipOutputFilePath)
-    except OSError as err:
-        logger.error('Problem zipping outputVarDir '+outpuVarDir+' to zip file: '+zipOutputFilePath)
-        sys.exit(1)
-
-    try:
-        shutil.rmtree(outputVarDir)
-        logger.info('Removed variable directory: '+outputVarDir)
-    except OSError as err:
-        logger.error('Problem removing variable directory '+outputVarDir)
-        sys.exit(1)
-
     # Create final directory path
     makeDirs(finalDir.strip())
+
+    chunkSize = '2'
+
+    mesh2tiff(inputDir, outputDir, finalDir, inputFile, inputVariable, chunkSize)
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
