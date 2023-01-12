@@ -202,7 +202,7 @@ class mesh2tiff:
 
         # Define queue
         input_q = PQueue()
-        chunkSize = 10
+        chunkSize = 21
 
         # Run regrid2Raster using multiprocessinng pool, and imput_list
         logger.info('Run regrid2Raster in Pool, with inputs_list')
