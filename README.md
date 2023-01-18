@@ -17,5 +17,4 @@ Produces COGs from from ADCIRC timeseries data, such as fort.63.
 
   Now you can run the command to create the COGs:
 
-    python adcircTime2cogs.py --inputDIR /data/4221-2022080406-namforecast/input --outputDIR /data/4221-2022080406-namforecast/cogeo --finalDIR /data/4221-2022080406-namforecast/final/cogeo --inputFile fort.63.nc --inputVariable zeta
-
+      python adcircTime2cogs.py --inputDIR /data/4221-2022080406-namforecast/input --inputFile fort.63.nc --inputVariable zeta

@@ -119,13 +119,10 @@ def makeDirs(dirPath):
         logger.info('Directory '+dirPath+' already made.')
 
 @logger.catch
-def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
+def main(inputDir, inputFile, inputVariable):
     # Creat output variable directory 
-    outputVarDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-')), '')
+    outputVarDir = os.path.join(os.environ['GEOSERVER_PATH']+inputDir.split('/')[2]+'/'+"".join(inputFile[:-3].split('.'))+'_'+inputVariable, '')
     logger.info('Created outputVarDir '+outputVarDir+'.')
-    # Creat final variable directory
-    finalVarDir = finalDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-'))
-    logger.info('Created finalVarDir '+finalVarDir+'.')
 
     # Define tmp directory
     tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_"+inputVariable+"_dask_tmp/"
@@ -218,26 +215,8 @@ def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
     f.close()
 
     f = open(outputVarDir+'datastore.properties', 'w')
-    f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_DB_HOST']+'\nport='+os.environ['ASGS_DB_PORT']+'\ndatabase=apsviz_cog_mosaic\nschema=public\nuser='+os.environ['ASGS_DB_USERNAME']+'\npasswd='+os.environ['ASGS_DB_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
+    f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_HOST']+'\nport='+os.environ['ASGS_PORT']+'\ndatabase='+os.environ['COG_MOSAIC_DATABASE']+'\nschema=public\nuser='+os.environ['COG_MOSAIC_USERNAME']+'\npasswd='+os.environ['COG_MOSAIC_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
     f.close()
-
-    logger.info('Zip directory: '+outputVarDir)
-    try:
-        zipOutputFilePath = shutil.make_archive(finalVarDir, 'zip', root_dir="/".join(outputVarDir.split('/')[:-2]), base_dir=outputVarDir.split('/')[-2])
-        logger.info('Zip outputVarDir '+outputVarDir+' to zip file: '+zipOutputFilePath)
-    except OSError as err:
-        logger.error('Problem zipping outputVarDir '+outpuVarDir+' to zip file: '+zipOutputFilePath)
-        sys.exit(1)
-
-    try:
-        shutil.rmtree(outputVarDir)
-        logger.info('Removed variable directory: '+outputVarDir)
-    except OSError as err:
-        logger.error('Problem removing variable directory '+outputVarDir)
-        sys.exit(1)
-
-    # Create final directory path
-    makeDirs(finalDir.strip())
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
@@ -245,10 +224,8 @@ if __name__ == "__main__":
 
     # Optional argument which requires a parameter (eg. -d test)
     parser.add_argument("--inputDIR", "--inputDir", help="Input directory path", action="store", dest="inputDir", required=True)
-    parser.add_argument("--outputDIR", "--outputDir", help="Output directory path", action="store", dest="outputDir", required=True)
-    parser.add_argument("--finalDIR", "--finalDir", help="Final directory path", action="store", dest="finalDir", required=True)
     parser.add_argument("--inputFILE", "--inputFile", help="Input file name", action="store", dest="inputFile", required=True)
-    parser.add_argument("--inputPARAM", "--inputVariable", help="Input parameter", action="store", dest="inputVariable")
+    parser.add_argument("--inputPARAM", "--inputVariable", help="Input parameter", action="store", dest="inputVariable", required=True)
 
     args = parser.parse_args()
 
@@ -262,13 +239,11 @@ if __name__ == "__main__":
 
     # get input variables from args
     inputDir = os.path.join(args.inputDir, '')
-    outputDir = os.path.join(args.outputDir, '')
-    finalDir = os.path.join(args.finalDir, '')
     inputFile = args.inputFile
     inputVariable = args.inputVariable
 
     if os.path.exists(inputDir+inputFile):
-        main(inputDir, outputDir, finalDir, inputFile, inputVariable)
+         main(inputDir, inputFile, inputVariable)
     else:
          logger.info(inputDir+inputFile+' does not exist')
          if inputFile.startswith("swan"):
