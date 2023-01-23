@@ -215,7 +215,7 @@ def main(inputDir, inputFile, inputVariable):
     f.close()
 
     f = open(outputVarDir+'datastore.properties', 'w')
-    f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_HOST']+'\nport='+os.environ['ASGS_PORT']+'\ndatabase='+os.environ['COG_MOSAIC_DATABASE']+'\nschema=public\nuser='+os.environ['COG_MOSAIC_USERNAME']+'\npasswd='+os.environ['COG_MOSAIC_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
+    f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_DB_HOST']+'\nport='+os.environ['ASGS_DB_PORT']+'\ndatabase='+os.environ['COG_MOSAIC_DATABASE']+'\nschema=public\nuser='+os.environ['COG_MOSAIC_USERNAME']+'\npasswd='+os.environ['COG_MOSAIC_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
     f.close()
 
 if __name__ == "__main__":
