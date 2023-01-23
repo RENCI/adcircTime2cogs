@@ -121,7 +121,7 @@ def makeDirs(dirPath):
 @logger.catch
 def main(inputDir, inputFile, inputVariable):
     # Creat output variable directory 
-    outputVarDir = os.path.join(os.environ['COG_MOSAIC_PATH']+inputDir.split('/')[2]+'/'+"".join(inputFile[:-3].split('.'))+'_'+inputVariable, '')
+    outputVarDir = os.path.join(os.path.join(os.environ['COG_MOSAIC_PATH'], '')+inputDir.split('/')[2]+'/'+"".join(inputFile[:-3].split('.'))+'_'+inputVariable, '')
     logger.info('Created outputVarDir '+outputVarDir+'.')
 
     # Define tmp directory
