@@ -5,7 +5,7 @@ channels:
 dependencies:
   - python=3.9
   - dask=2022.9.1
-  - scipy=1.9.1
+  - scipy=1.10.1
   - datacube=1.8.7
   - mpire=2.6.0
   - matplotlib-base=3.6.0
