@@ -11,11 +11,11 @@ import matplotlib.tri as Tri
 from scipy import interpolate
 from scipy.spatial import Delaunay
 
-import dask
-import dask.array as da
+import dask # DASK
+import dask.array as da # DASK
 
 import geopandas as gpd
-import dask_geopandas as dgp
+import dask_geopandas as dgp # DASK
 
 import xarray as xr
 from datacube.utils.cog import write_cog
@@ -24,9 +24,13 @@ from affine import Affine
 from pyproj import CRS
 
 from multiprocessing.pool import ThreadPool as Pool
+#from multiprocessing import Pool
 from multiprocessing import Queue as PQueue
 
-import utilities.adcirc_dask_utilities as adcirc_utilities
+import utilities.adcirc_dask_utilities as adcirc_utilities # DASK
+#import utilities.adcirc_utilities as adcirc_utilities  # NODASK
+
+import faulthandler; faulthandler.enable()
 
 def construct_geopandas(agdict, targetepsg):
     """
@@ -38,15 +42,18 @@ def construct_geopandas(agdict, targetepsg):
 
     gdf = gpd.GeoDataFrame(df_Adcirc, geometry=gpd.points_from_xy(agdict['lon'], agdict['lat']))
 
-    ddf = dgp.from_geopandas(gdf, npartitions=4)
+    ddf = dgp.from_geopandas(gdf, npartitions=4) # DASK
     
     # init crs is LonLat, WGS84
     adcircepsg = agdict['crs']
     # Adding crs to initial GDF
-    ddf.crs = CRS(adcircepsg)
+    ddf.crs = CRS(adcircepsg) # DASK
+    #gdf.crs = CRS(adcircepsg) # NODASK
     # Converting GDF
-    ddf = ddf.to_crs(CRS(targetepsg))
-    return ddf
+    ddf = ddf.to_crs(CRS(targetepsg)) # DASK
+    #gdf = gdf.to_crs(CRS(targetepsg)) # NODASK
+    return ddf # DASK
+    return gdf # NODASK
 
 def compute_geotiff_grid(targetgrid, adcircepsg, targetepsg):
     """
@@ -73,8 +80,10 @@ def compute_geotiff_grid(targetgrid, adcircepsg, targetepsg):
     lowerright_x = df_target.lr_longitude
     lowerright_y = df_target.lr_latitude
 
-    x = dask.array.arange(upperleft_x, lowerright_x[0], targetgrid['res'][0])
-    y = dask.array.arange(upperleft_y, lowerright_y[0], -targetgrid['res'][0])
+    x = dask.array.arange(upperleft_x, lowerright_x[0], targetgrid['res'][0]) # DASK
+    y = dask.array.arange(upperleft_y, lowerright_y[0], -targetgrid['res'][0]) # DASK
+    #x = np.arange(upperleft_x, lowerright_x[0], targetgrid['res'][0]) # NODASK
+    #y = np.arange(upperleft_y, lowerright_y[0], -targetgrid['res'][0]) # NODASK
     xx, yy = np.meshgrid(x, y)
 
     # get centroid coords
@@ -121,19 +130,14 @@ def makeDirs(dirPath):
         logger.info('Directory '+dirPath+' already made.')
 
 class mesh2tiff:
-    def __init__(self, inputDir, outputDir, finalDir, inputFile, inputVariable):
+    def __init__(self, inputDir, inputFile, inputVariable, numCPU):
         # Make input variables accessable throughout class
         self.inputFile = inputFile
         self.inputVariable = inputVariable
 
-        # Creat output variable directory 
-        #self.outputVarDir = os.path.join(outputDir+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-')), '')
-        self.outputVarDir = os.path.join(outputDir+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable, '')
+        # Creat output variable directory name
+        self.outputVarDir = os.path.join(os.environ['COG_MOSAIC_PATH']+inputDir.split('/')[2]+'/'+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable, '')
         logger.info('Created outputVarDir name '+self.outputVarDir+'.')
-        # Creat final variable directory
-        #finalVarDir = finalDir+"".join(self.inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-'))
-        finalVarDir = os.path.join(finalDir+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable, '')
-        logger.info('Created finalVarDir name '+finalVarDir+'.')
 
         # Make output directory
         makeDirs(self.outputVarDir.strip())
@@ -161,7 +165,8 @@ class mesh2tiff:
 
         logger.info('Compute geotiff grid coordinates')
         self.rasdict = compute_geotiff_grid(targetgrid, self.adcircepsg, self.targetepsg)
-        self.xxm, self.yym = self.rasdict['xxm'].rechunk(4000,4419,2), self.rasdict['yym'].rechunk(4000,4419,2)
+        self.xxm, self.yym = self.rasdict['xxm'].rechunk(4000,4419,2), self.rasdict['yym'].rechunk(4000,4419,2) # DASK
+        #self.xxm, self.yym = self.rasdict['xxm'], self.rasdict['yym'] # NODASK
 
         logger.info('Computer ones for mask')
         advardict = adcirc_utilities.get_adcirc_slice(self.nc, inputVariable, 0)
@@ -169,12 +174,16 @@ class mesh2tiff:
 
         logger.info('Create triang using Tri.Triangulation')
         triang = Tri.Triangulation(xtemp, ytemp, triangles=self.agdict['ele'])
-        triang.triangles = da.from_array(triang.triangles).rechunk(445513,8)
-        triang.x = da.from_array(triang.x).rechunk(302240,6)
-        triang.y = da.from_array(triang.y).rechunk(302240,6)
+        triang.triangles = da.from_array(triang.triangles).rechunk(445513,8) # DASK
+        triang.x = da.from_array(triang.x).rechunk(302240,6) # DASK
+        triang.y = da.from_array(triang.y).rechunk(302240,6) # DASK
+        #triang.triangles = np.array(triang.triangles) #.rechunk(445513,8) # NODASK
+        #triang.x = np.array(triang.x) #.rechunk(302240,6) # NODASK
+        #triang.y = np.array(triang.y) #.rechunk(302240,6) # NODASK
 
         logger.info('Create traingd using Delaunay')
-        self.triangd = Delaunay(np.stack((self.agdict['lon'].values, self.agdict['lat'].values), axis=1))
+        self.triangd = Delaunay(np.stack((self.agdict['lon'].values, self.agdict['lat'].values), axis=1)) # DASK
+        #self.triangd = Delaunay(np.stack((self.agdict['lon'].data, self.agdict['lat'].data), axis=1)) # NODASK
 
         logger.info('Create onesinterp_lin')
         onesinterp_lin = Tri.LinearTriInterpolator(triang, z_ones)
@@ -183,14 +192,15 @@ class mesh2tiff:
 
         self.mindex = np.where(ones_z.mask == True)
 
-         # Define input_list times index
+        # Define input_list times index
         inputs_list = []
         i = 0
 
         logger.info('Loop through each timestep in '+self.inputFile+' and regrid data')
         for timestep in self.nc.variables['time']:
             logger.info('Get file data time from '+self.inputFile)
-            fileDateTime = "".join("".join(str(timestep.values).split('-')).split(':')).split('.')[0]+'Z'
+            fileDateTime = "".join("".join(str(timestep.values).split('-')).split(':')).split('.')[0]+'Z' # DASK
+            #fileDateTime = "".join("".join(str(timestep.data).split('-')).split(':')).split('.')[0]+'Z' # NODASK
 
             # Create outputFile name
             outputFile = '_'.join(['_'.join(self.inputFile.split('.')[0:2]),inputVariable,fileDateTime+'.tiff'])
@@ -202,17 +212,20 @@ class mesh2tiff:
 
         # Define queue
         input_q = PQueue()
-        chunkSize = 21
+
+        if numCPU is None:
+            cpus = 4
+            chunkSize = int(len(self.nc.variables['time'])/cpus) 
+        else:
+            cpus = int(numCPU)
+            chunkSize = int(len(self.nc.variables['time'])/cpus)
 
         # Run regrid2Raster using multiprocessinng pool, and imput_list
         logger.info('Run regrid2Raster in Pool, with inputs_list')
-        #with Pool(processes=4) as pool:
-        #    outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=chunkSize)
-        #    pool.close()
-        #    pool.terminate()
-        with Pool(processes=4) as pool:
+        with Pool(processes=3) as pool:
             try:
-               outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=int(chunkSize))
+               #outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=28) 
+               outputs_list = pool.map(self.regrid2Raster, [(input_q, input_list) for input_list in inputs_list], chunksize=28) 
                logger.info(outputs_list)
             except Exception as e:
                logger.error(e)
@@ -231,23 +244,8 @@ class mesh2tiff:
         f.close()
 
         f = open(self.outputVarDir+'datastore.properties', 'w')
-        f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_HOST']+'\nport='+os.environ['ASGS_PORT']+'\ndatabase='+os.environ['COG_MOSAIC_DATABASE']+'\nschema=public\nuser='+os.environ['COG_MOSAIC_USERNAME']+'\npasswd='+os.environ['COG_MOSAIC_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
+        f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_DB_HOST']+'\nport='+os.environ['ASGS_DB_PORT']+'\ndatabase='+os.environ['COG_MOSAIC_DATABASE']+'\nschema=public\nuser='+os.environ['COG_MOSAIC_USERNAME']+'\npasswd='+os.environ['COG_MOSAIC_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
         f.close()
-
-        logger.info('Zip directory: '+self.outputVarDir)
-        try:
-            zipOutputFilePath = shutil.make_archive(finalVarDir, 'zip', root_dir="/".join(self.outputVarDir.split('/')[:-2]), base_dir=self.outputVarDir.split('/')[-2])
-            logger.info('Zip outputVarDir '+self.outputVarDir+' to zip file: '+zipOutputFilePath)
-        except OSError as err:
-            logger.error('Problem zipping outputVarDir '+self.outputVarDir+' to zip file: '+zipOutputFilePath)
-            sys.exit(1)
-
-        try:
-            shutil.rmtree(self.outputVarDir)
-            logger.info('Removed variable directory: '+self.outputVarDir)
-        except OSError as err:
-            logger.error('Problem removing variable directory '+self.outputVarDir)
-            sys.exit(1)
 
     def regrid2Raster(self, inputList):
         fileDateTime = inputList[1][0]
@@ -259,6 +257,7 @@ class mesh2tiff:
 
         logger.info('Start regrid of timestepp: '+fileDateTime)
         interpolator = interpolate.LinearNDInterpolator(self.triangd, advardict['data'])
+        interpolator((0, 0))
 
         grid_zi = interpolator((self.xxm, self.yym))
         grid_zi[self.mindex] = np.nan
@@ -269,23 +268,19 @@ class mesh2tiff:
         write_cog(geo_im=zi_data, fname=self.outputVarDir+outputFile, overwrite=True)
         logger.info('Finish writing regridded data to tiff file: '+self.outputVarDir+outputFile)
 
-
 @logger.catch
-def main(inputDir, outputDir, finalDir, inputFile, inputVariable):
+def main(inputDir, inputFile, inputVariable, numCPU):
     # Define tmp directory
-    tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_"+inputVariable+"_dask_tmp/"
+    tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_"+inputVariable+"_dask_tmp/" # DASK
 
     # Make tmpDir 
-    makeDirs(tmpDir.strip())
+    os.makedirs(tmpDir, exist_ok=True)
 
     # Config DASK to use tmpDir
-    dask.config.set(temporary_directory=tmpDir)
+    dask.config.set(temporary_directory=tmpDir) # DASK
     logger.info('Configure tmp directory for DASK: '+tmpDir)
 
-    # Create final directory path
-    makeDirs(finalDir.strip())
-
-    mesh2tiff(inputDir, outputDir, finalDir, inputFile, inputVariable)
+    mesh2tiff(inputDir, inputFile, inputVariable, numCPU)
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
@@ -293,10 +288,9 @@ if __name__ == "__main__":
 
     # Optional argument which requires a parameter (eg. -d test)
     parser.add_argument("--inputDIR", "--inputDir", help="Input directory path", action="store", dest="inputDir", required=True)
-    parser.add_argument("--outputDIR", "--outputDir", help="Output directory path", action="store", dest="outputDir", required=True)
-    parser.add_argument("--finalDIR", "--finalDir", help="Final directory path", action="store", dest="finalDir", required=True)
     parser.add_argument("--inputFILE", "--inputFile", help="Input file name", action="store", dest="inputFile", required=True)
-    parser.add_argument("--inputPARAM", "--inputVariable", help="Input parameter", action="store", dest="inputVariable")
+    parser.add_argument("--inputPARAM", "--inputVariable", help="Input parameter", action="store", dest="inputVariable", required=True)
+    parser.add_argument("--numCPU", "--numCpu", help="Number of CPUs", action="store", dest="numCPU", required=False)
 
     args = parser.parse_args()
 
@@ -310,13 +304,12 @@ if __name__ == "__main__":
 
     # get input variables from args
     inputDir = os.path.join(args.inputDir, '')
-    outputDir = os.path.join(args.outputDir, '')
-    finalDir = os.path.join(args.finalDir, '')
     inputFile = args.inputFile
     inputVariable = args.inputVariable
+    numCPU = args.numCPU
 
     if os.path.exists(inputDir+inputFile):
-        main(inputDir, outputDir, finalDir, inputFile, inputVariable)
+         main(inputDir, inputFile, inputVariable, numCPU)
     else:
          logger.info(inputDir+inputFile+' does not exist')
          if inputFile.startswith("swan"):
@@ -325,4 +318,3 @@ if __name__ == "__main__":
          else:
              logger.info('The input file is not a swan file : '+inputDir+inputFile+' so do a hard exit')
              sys.exit(1)
-
