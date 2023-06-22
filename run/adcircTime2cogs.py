@@ -130,17 +130,24 @@ def makeDirs(dirPath):
         logger.info('Directory '+dirPath+' already made.')
 
 class mesh2tiff:
-    def __init__(self, inputDir, inputFile, inputVariable, numCPU):
+    def __init__(self, inputDir, outputDir, finalDir, inputFile, inputVariable, numCPU):
         # Make input variables accessable throughout class
         self.inputFile = inputFile
         self.inputVariable = inputVariable
 
         # Creat output variable directory name
-        self.outputVarDir = os.path.join(os.environ['COG_MOSAIC_PATH']+inputDir.split('/')[2]+'/'+"".join(self.inputFile[:-3].split('.'))+'_'+self.inputVariable, '')
-        logger.info('Created outputVarDir name '+self.outputVarDir+'.')
+        self.outputVarDir = os.path.join(outputDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-')), '')
+        logger.info('Created outputVarDir '+self.outputVarDir+'.')
 
         # Make output directory
         makeDirs(self.outputVarDir.strip())
+
+        # Creat final variable directory
+        self.finalVarDir = finalDir+"".join(inputFile[:-3].split('.'))+'_'+inputVariable+'_'+"_".join(inputDir.split('/')[2].split('-'))
+        logger.info('Created finalVarDir '+self.finalVarDir+'.')
+
+        # Make final cogeo directory
+        makeDirs(finalDir.strip())
 
         logger.info('Read '+inputDir+self.inputFile+' and create agdict')
         self.nc, self.agdict = adcirc_utilities.extract_url_grid(inputDir+self.inputFile)
@@ -247,6 +254,10 @@ class mesh2tiff:
         f.write('SPI=org.geotools.data.postgis.PostgisNGDataStoreFactory\nhost='+os.environ['ASGS_DB_HOST']+'\nport='+os.environ['ASGS_DB_PORT']+'\ndatabase='+os.environ['COG_MOSAIC_DATABASE']+'\nschema=public\nuser='+os.environ['COG_MOSAIC_USERNAME']+'\npasswd='+os.environ['COG_MOSAIC_PASSWORD']+'\nLoose\ bbox=true\nEstimated\ extends=false\nvalidate\ connections=true\nConnection\ timeout=10\npreparedStatements=true\n')
         f.close()
 
+        # move output directory to final directory
+        shutil.move(self.outputVarDir, self.finalVarDir)
+        logger.info('Moved output directory: '+self.outputVarDir+' to final directory: '+self.finalVarDir)
+
     def regrid2Raster(self, inputList):
         fileDateTime = inputList[1][0]
         time_index = inputList[1][1]
@@ -269,7 +280,7 @@ class mesh2tiff:
         logger.info('Finish writing regridded data to tiff file: '+self.outputVarDir+outputFile)
 
 @logger.catch
-def main(inputDir, inputFile, inputVariable, numCPU):
+def main(inputDir, outputDir, finalDir, inputFile, inputVariable, numCPU):
     # Define tmp directory
     tmpDir = "/".join(inputDir.split("/")[:-2])+"/"+inputFile.split('.')[0]+"_"+inputVariable+"_dask_tmp/" # DASK
 
@@ -280,7 +291,7 @@ def main(inputDir, inputFile, inputVariable, numCPU):
     dask.config.set(temporary_directory=tmpDir) # DASK
     logger.info('Configure tmp directory for DASK: '+tmpDir)
 
-    mesh2tiff(inputDir, inputFile, inputVariable, numCPU)
+    mesh2tiff(inputDir, outputDir, finalDir, inputFile, inputVariable, numCPU)
 
 if __name__ == "__main__":
     """ This is executed when run from the command line """
@@ -288,6 +299,8 @@ if __name__ == "__main__":
 
     # Optional argument which requires a parameter (eg. -d test)
     parser.add_argument("--inputDIR", "--inputDir", help="Input directory path", action="store", dest="inputDir", required=True)
+    parser.add_argument("--outputDIR", "--outputDir", help="Output directory path", action="store", dest="outputDir", required=True)
+    parser.add_argument("--finalDIR", "--finalDir", help="Final directory path", action="store", dest="finalDir", required=True)
     parser.add_argument("--inputFILE", "--inputFile", help="Input file name", action="store", dest="inputFile", required=True)
     parser.add_argument("--inputPARAM", "--inputVariable", help="Input parameter", action="store", dest="inputVariable", required=True)
     parser.add_argument("--numCPU", "--numCpu", help="Number of CPUs", action="store", dest="numCPU", required=False)
@@ -304,12 +317,14 @@ if __name__ == "__main__":
 
     # get input variables from args
     inputDir = os.path.join(args.inputDir, '')
+    outputDir = os.path.join(args.outputDir, '')
+    finalDir = os.path.join(args.finalDir, '')
     inputFile = args.inputFile
     inputVariable = args.inputVariable
     numCPU = args.numCPU
 
     if os.path.exists(inputDir+inputFile):
-         main(inputDir, inputFile, inputVariable, numCPU)
+         main(inputDir, outputDir, finalDir, inputFile, inputVariable, numCPU)
     else:
          logger.info(inputDir+inputFile+' does not exist')
          if inputFile.startswith("swan"):
